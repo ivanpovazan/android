@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -19,6 +20,9 @@ namespace Android.Runtime {
 	class AndroidRuntime : JniRuntime {
 
 		public const string InternalDllName = RuntimeConstants.InternalDllName;
+
+		[FeatureSwitchDefinition("Android.Runtime.AndroidRuntime.UseManagedTypeMaps")]
+        internal static bool UseManagedTypeMaps { get; } = AppContext.TryGetSwitch("Android.Runtime.AndroidRuntime.UseManagedTypeMaps", out bool isEnabled) ? isEnabled : false;
 
 		internal AndroidRuntime (IntPtr jnienv,
 				IntPtr vm,
