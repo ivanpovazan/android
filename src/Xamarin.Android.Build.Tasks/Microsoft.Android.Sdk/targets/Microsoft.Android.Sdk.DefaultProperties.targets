@@ -136,6 +136,9 @@
     <!-- XA feature switches defaults -->
     <AndroidUseNegotiateAuthentication Condition="'$(AndroidUseNegotiateAuthentication)' == ''">false</AndroidUseNegotiateAuthentication>
 
+    <AndroidUseManagedTypeMaps Condition="'$(_AndroidRuntime)' == 'CoreCLR' or '$(_AndroidRuntime)' == 'NativeAOT'">true</AndroidUseManagedTypeMaps>
+    <AndroidUseManagedTypeMaps Condition="'$(AndroidUseManagedTypeMaps)' == ''">false</AndroidUseManagedTypeMaps>
+
     <!-- profiler won't work without internet permission, we must thus force it -->
     <AndroidNeedsInternetPermission Condition=" '$(AndroidEnableProfiler)' == 'true' ">True</AndroidNeedsInternetPermission>
 

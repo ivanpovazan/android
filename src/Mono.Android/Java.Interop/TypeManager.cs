@@ -39,6 +39,9 @@ namespace Java.Interop {
 	}
 
 	public static partial class TypeManager {
+
+		internal static Dictionary<string, Type> JavaToManagedTypeMapping { get; }
+
 		internal static string GetClassName (IntPtr class_ptr)
 		{
 			IntPtr ptr = RuntimeNativeMethods.monodroid_TypeManager_get_java_class_name (class_ptr);
@@ -217,18 +220,32 @@ namespace Java.Interop {
 
 		internal static Type? GetJavaToManagedType (string class_name)
 		{
-			Type? type = monodroid_typemap_java_to_managed (class_name);
-			if (type != null)
-				return type;
+			if (!Android.Runtime.AndroidRuntime.UseManagedTypeMaps) {
+				Type? type = monodroid_typemap_java_to_managed (class_name);
+				if (type != null)
+					return type;
 
-			if (!JNIEnvInit.IsRunningOnDesktop) {
-				// Miss message is logged in the native runtime
-				if (Logger.LogAssembly)
-					JNIEnv.LogTypemapTrace (new System.Diagnostics.StackTrace (true));
+				if (!JNIEnvInit.IsRunningOnDesktop) {
+					// Miss message is logged in the native runtime
+					if (Logger.LogAssembly)
+						JNIEnv.LogTypemapTrace (new System.Diagnostics.StackTrace (true));
+					return null;
+				}
+
 				return null;
-			}
+			} else {
 
-			return null;
+				if (Java.Interop.TypeManager.JavaToManagedTypeMapping is null || Java.Interop.TypeManager.JavaToManagedTypeMapping.Count == 0)
+					throw new Exception ($"Looking up managed type for {class_name} cannot be performed as java-to-managed managed type map is not available.");
+
+				if (!Java.Interop.TypeManager.JavaToManagedTypeMapping.TryGetValue (class_name, out var managedType))
+					throw new Exception ($"Entry not found for {class_name} in {nameof(Java.Interop.TypeManager.JavaToManagedTypeMapping)}");
+
+				// TODO: remove, only used for debugging purposes
+				Logger.Log (LogLevel.Info, "monodroid", $"Java type name: {class_name} resolved to managed type: {managedType}");
+
+				return managedType;
+			}
 		}
 
 		internal static IJavaPeerable? CreateInstance (IntPtr handle, JniHandleOwnership transfer)

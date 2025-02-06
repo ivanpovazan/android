@@ -455,33 +455,46 @@ namespace Android.Runtime {
 
 		internal static unsafe string? TypemapManagedToJava (Type type)
 		{
-			if (mvid_bytes == null)
-				mvid_bytes = new byte[16];
+			if (!Android.Runtime.AndroidRuntime.UseManagedTypeMaps) {
+				if (mvid_bytes == null)
+					mvid_bytes = new byte[16];
 
-			var mvid = new Span<byte>(mvid_bytes);
-			byte[]? mvid_data = null;
-			if (!type.Module.ModuleVersionId.TryWriteBytes (mvid)) {
-				RuntimeNativeMethods.monodroid_log (LogLevel.Warn, LogCategories.Default, $"Failed to obtain module MVID using the fast method, falling back to the slow one");
-				mvid_data = type.Module.ModuleVersionId.ToByteArray ();
-			} else {
-				mvid_data = mvid_bytes;
-			}
-
-			IntPtr ret;
-			fixed (byte* mvidptr = mvid_data) {
-				ret = monodroid_typemap_managed_to_java (type, mvidptr);
-			}
-
-			if (ret == IntPtr.Zero) {
-				if (Logger.LogAssembly) {
-					RuntimeNativeMethods.monodroid_log (LogLevel.Warn, LogCategories.Default, $"typemap: failed to map managed type to Java type: {type.AssemblyQualifiedName} (Module ID: {type.Module.ModuleVersionId}; Type token: {type.MetadataToken})");
-					LogTypemapTrace (new StackTrace (true));
+				var mvid = new Span<byte>(mvid_bytes);
+				byte[]? mvid_data = null;
+				if (!type.Module.ModuleVersionId.TryWriteBytes (mvid)) {
+					RuntimeNativeMethods.monodroid_log (LogLevel.Warn, LogCategories.Default, $"Failed to obtain module MVID using the fast method, falling back to the slow one");
+					mvid_data = type.Module.ModuleVersionId.ToByteArray ();
+				} else {
+					mvid_data = mvid_bytes;
 				}
 
-				return null;
-			}
+				IntPtr ret;
+				fixed (byte* mvidptr = mvid_data) {
+					ret = monodroid_typemap_managed_to_java (type, mvidptr);
+				}
 
-			return Marshal.PtrToStringAnsi (ret);
+				if (ret == IntPtr.Zero) {
+					if (Logger.LogAssembly) {
+						RuntimeNativeMethods.monodroid_log (LogLevel.Warn, LogCategories.Default, $"typemap: failed to map managed type to Java type: {type.AssemblyQualifiedName} (Module ID: {type.Module.ModuleVersionId}; Type token: {type.MetadataToken})");
+						LogTypemapTrace (new StackTrace (true));
+					}
+
+					return null;
+				}
+
+				return Marshal.PtrToStringAnsi (ret);
+			} else {
+				var registerAttribute = type?.GetCustomAttribute(typeof(RegisterAttribute)) as RegisterAttribute;
+
+				if (registerAttribute is null) {
+					RuntimeNativeMethods.monodroid_log (LogLevel.Warn,
+						LogCategories.Assembly, 
+						$"Managed type: {type} could not be resolved to java type name as it does not have {nameof(RegisterAttribute)} attached");
+					return null;
+				}
+
+				return registerAttribute.Name;
+			}
 		}
 
 		public static string GetJniName (Type type)
