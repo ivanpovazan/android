@@ -369,24 +369,17 @@ namespace Xamarin.Android.Tasks
 						uniqueAssemblyNames,
 						EnsureCodeGenState (targetArch)
 					);
-				} else {
-					marshalMethodsAsmGen = new MarshalMethodsNativeAssemblyGenerator (
-						Log,
-						targetArch,
-						assemblyCount,
-						uniqueAssemblyNames
-					);
-				}
 
-				LLVMIR.LlvmIrModule marshalMethodsModule = marshalMethodsAsmGen.Construct ();
-				using var marshalMethodsWriter = MemoryStreamPool.Shared.CreateStreamWriter ();
-				try {
-					marshalMethodsAsmGen.Generate (marshalMethodsModule, targetArch, marshalMethodsWriter, marshalMethodsLlFilePath);
-				} catch {
-					throw;
-				} finally {
-					marshalMethodsWriter.Flush ();
-					Files.CopyIfStreamChanged (marshalMethodsWriter.BaseStream, marshalMethodsLlFilePath);
+					LLVMIR.LlvmIrModule marshalMethodsModule = marshalMethodsAsmGen.Construct ();
+					using var marshalMethodsWriter = MemoryStreamPool.Shared.CreateStreamWriter ();
+					try {
+						marshalMethodsAsmGen.Generate (marshalMethodsModule, targetArch, marshalMethodsWriter, marshalMethodsLlFilePath);
+					} catch {
+						throw;
+					} finally {
+						marshalMethodsWriter.Flush ();
+						Files.CopyIfStreamChanged (marshalMethodsWriter.BaseStream, marshalMethodsLlFilePath);
+					}
 				}
 			}
 
