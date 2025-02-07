@@ -1634,6 +1634,7 @@ because xbuild doesn't support framework reference assemblies.
       <Output TaskParameter="AssemblySources" ItemName="_CompressedAssembliesAssemblySource" />
   </PrepareAbiItems>
   <PrepareAbiItems
+    Condition=" '$(_AndroidUseMarshalMethods)' == 'True' "
     BuildTargetAbis="@(_BuildTargetAbis)"
     NativeSourcesDir="$(_NativeAssemblySourceDir)"
     Debug="$(AndroidIncludeDebugSymbols)"
