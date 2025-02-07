@@ -54,6 +54,7 @@ namespace Xamarin.Android.Tasks
 		public bool LinkingEnabled { get; set; }
 		public bool HaveMultipleRIDs { get; set; }
 		public bool EnableMarshalMethods { get; set; }
+		public bool UseManagedTypeMaps { get; set; }
 		public string ManifestTemplate { get; set; }
 		public string[] MergedManifestDocuments { get; set; }
 
@@ -105,7 +106,8 @@ namespace Xamarin.Android.Tasks
 			try {
 				androidRuntime = MonoAndroidHelper.ParseAndroidRuntime (AndroidRuntime);
 				bool useMarshalMethods = !Debug && EnableMarshalMethods;
-				Run (useMarshalMethods);
+				// TODO: do not allow creation of marshal methods for CoreCLR/NativeAOT
+				Run (useMarshalMethods, UseManagedTypeMaps);
 			} catch (XamarinAndroidException e) {
 				Log.LogCodedError (string.Format ("XA{0:0000}", e.Code), e.MessageWithoutCode);
 				if (MonoAndroidHelper.LogInternalExceptions)
@@ -122,10 +124,10 @@ namespace Xamarin.Android.Tasks
 			return !Log.HasLoggedErrors;
 		}
 
-		XAAssemblyResolver MakeResolver (bool useMarshalMethods, AndroidTargetArch targetArch, Dictionary<string, ITaskItem> assemblies)
+		XAAssemblyResolver MakeResolver (bool useMarshalMethods, bool useManagedTypeMaps, AndroidTargetArch targetArch, Dictionary<string, ITaskItem> assemblies)
 		{
 			var readerParams = new ReaderParameters ();
-			if (useMarshalMethods) {
+			if (useMarshalMethods || useManagedTypeMaps) {
 				readerParams.ReadWrite = true;
 				readerParams.InMemory = true;
 			}
@@ -148,7 +150,7 @@ namespace Xamarin.Android.Tasks
 			return res;
 		}
 
-		void Run (bool useMarshalMethods)
+		void Run (bool useMarshalMethods, bool useManagedTypeMaps)
 		{
 			PackageNamingPolicy pnp;
 			JavaNativeTypeManager.PackageNamingPolicy = Enum.TryParse (PackageNamingPolicy, out pnp) ? pnp : PackageNamingPolicyEnum.LowercaseCrc64;
@@ -205,7 +207,7 @@ namespace Xamarin.Android.Tasks
 				// Pick the "first" one as the one to generate Java code for
 				var generateJavaCode = arch == firstArch;
 
-				(bool success, NativeCodeGenState? state) = GenerateJavaSourcesAndMaybeClassifyMarshalMethods (arch, archAssemblies, MaybeGetArchAssemblies (userAssembliesPerArch, arch), useMarshalMethods, generateJavaCode);
+				(bool success, NativeCodeGenState? state) = GenerateJavaSourcesAndMaybeClassifyMarshalMethods (arch, archAssemblies, MaybeGetArchAssemblies (userAssembliesPerArch, arch), useMarshalMethods, useManagedTypeMaps, generateJavaCode);
 
 				if (!success) {
 					generateSucceeded = false;
@@ -262,7 +264,7 @@ namespace Xamarin.Android.Tasks
 
 				NativeCodeGenState state = kvp.Value;
 				first = false;
-				WriteTypeMappings (state);
+				WriteTypeMappings (state, useManagedTypeMaps);
 			}
 
 			// Set for use by <GeneratePackageManagerJava/> task later
@@ -385,9 +387,9 @@ namespace Xamarin.Android.Tasks
 			return additionalProviders;
 		}
 
-		(bool success, NativeCodeGenState? stubsState) GenerateJavaSourcesAndMaybeClassifyMarshalMethods (AndroidTargetArch arch, Dictionary<string, ITaskItem> assemblies, Dictionary<string, ITaskItem> userAssemblies, bool useMarshalMethods, bool generateJavaCode)
+		(bool success, NativeCodeGenState? stubsState) GenerateJavaSourcesAndMaybeClassifyMarshalMethods (AndroidTargetArch arch, Dictionary<string, ITaskItem> assemblies, Dictionary<string, ITaskItem> userAssemblies, bool useMarshalMethods, bool useManagedTypeMaps, bool generateJavaCode)
 		{
-			XAAssemblyResolver resolver = MakeResolver (useMarshalMethods, arch, assemblies);
+			XAAssemblyResolver resolver = MakeResolver (useMarshalMethods, useManagedTypeMaps, arch, assemblies);
 			var tdCache = new TypeDefinitionCache ();
 			(List<TypeDefinition> allJavaTypes, List<TypeDefinition> javaTypesForJCW) = ScanForJavaTypes (resolver, tdCache, assemblies, userAssemblies, useMarshalMethods);
 			var jcwContext = new JCWGeneratorContext (arch, resolver, assemblies.Values, javaTypesForJCW, tdCache, useMarshalMethods);
@@ -454,10 +456,9 @@ namespace Xamarin.Android.Tasks
 			Files.CopyIfStringChanged (template, Path.Combine (destDir, filename));
 		}
 
-		void WriteTypeMappings (NativeCodeGenState state)
+		void WriteTypeMappings (NativeCodeGenState state, bool useManagedTypeMaps)
 		{
-			Log.LogDebugMessage ($"Generating type maps for architecture '{state.TargetArch}'");
-			var tmg = new TypeMapGenerator (Log, state);
+			var tmg = new TypeMapGenerator (Log, state, useManagedTypeMaps);
 			if (!tmg.Generate (Debug, SkipJniAddNativeMethodRegistrationAttributeScan, TypemapOutputDirectory, GenerateNativeAssembly)) {
 				throw new XamarinAndroidException (4308, Properties.Resources.XA4308);
 			}

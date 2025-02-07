@@ -328,12 +328,12 @@ Copyright (C) 2011-2012 Xamarin. All rights reserved.
 <PropertyGroup>
   <_AndroidAotStripLibraries Condition=" '$(_AndroidAotStripLibraries)' == '' And '$(AndroidIncludeDebugSymbols)' != 'true' ">True</_AndroidAotStripLibraries>
   <AndroidUseAssemblyStore Condition=" '$(AndroidUseAssemblyStore)' == '' and ('$(EmbedAssembliesIntoApk)' != 'true' or '$(AndroidIncludeDebugSymbols)' == 'true') ">false</AndroidUseAssemblyStore>
-  <AndroidUseAssemblyStore Condition=" '$(AndroidUseAssemblyStore)' == '' ">true</AndroidUseAssemblyStore>
+  <AndroidUseAssemblyStore Condition=" '$(AndroidUseAssemblyStore)' == '' and '$(_AndroidRuntime)' != 'CoreCLR' and '$(_AndroidRuntime)' != 'NativeAOT' ">true</AndroidUseAssemblyStore>
   <AndroidAotEnableLazyLoad Condition=" '$(AndroidAotEnableLazyLoad)' == '' And '$(AotAssemblies)' == 'true' And '$(AndroidIncludeDebugSymbols)' != 'true' ">True</AndroidAotEnableLazyLoad>
   <AndroidEnableMarshalMethods Condition=" '$(AndroidEnableMarshalMethods)' == '' and ('$(UsingMicrosoftNETSdkRazor)' == 'true') ">False</AndroidEnableMarshalMethods>
-  <AndroidEnableMarshalMethods Condition=" '$(AndroidEnableMarshalMethods)' == '' and '$(_AndroidRuntime)' != 'NativeAOT' ">True</AndroidEnableMarshalMethods>
+  <AndroidEnableMarshalMethods Condition=" '$(AndroidEnableMarshalMethods)' == '' and '$(_AndroidRuntime)' != 'CoreCLR' and '$(_AndroidRuntime)' != 'NativeAOT' ">True</AndroidEnableMarshalMethods>
   <!-- NOTE: temporarily disable for NativeAOT for now, to get build passing -->
-  <AndroidEnableMarshalMethods Condition=" '$(AndroidEnableMarshalMethods)' == '' and '$(_AndroidRuntime)' == 'NativeAOT' ">False</AndroidEnableMarshalMethods>
+  <AndroidEnableMarshalMethods Condition=" '$(AndroidEnableMarshalMethods)' == '' and ('$(_AndroidRuntime)' == 'CoreCLR' or '$(_AndroidRuntime)' == 'NativeAOT') ">False</AndroidEnableMarshalMethods>
   <_AndroidUseMarshalMethods Condition=" '$(AndroidIncludeDebugSymbols)' == 'True' ">False</_AndroidUseMarshalMethods>
   <_AndroidUseMarshalMethods Condition=" '$(AndroidIncludeDebugSymbols)' != 'True' ">$(AndroidEnableMarshalMethods)</_AndroidUseMarshalMethods>
 </PropertyGroup>
@@ -1531,6 +1531,7 @@ because xbuild doesn't support framework reference assemblies.
       SkipJniAddNativeMethodRegistrationAttributeScan="$(_SkipJniAddNativeMethodRegistrationAttributeScan)"
       CheckedBuild="$(_AndroidCheckedBuild)"
       EnableMarshalMethods="$(_AndroidUseMarshalMethods)"
+      UseManagedTypeMaps="$(AndroidUseManagedTypeMaps)"
       LinkingEnabled="$(_LinkingEnabled)"
       HaveMultipleRIDs="$(_HaveMultipleRIDs)"
       IntermediateOutputDirectory="$(IntermediateOutputPath)"
@@ -1947,10 +1948,15 @@ because xbuild doesn't support framework reference assemblies.
     SourceFiles="@(_ResolvedAssemblies->'%(Identity).config')"
     DestinationFiles="@(_ShrunkAssemblies->'%(Identity).config')" />
 
-  <!-- Shrink Mono.Android.dll by removing attribute only needed for GenerateJavaStubs -->
+  <!-- Shrink Mono.Android.dll by removing attribute only needed for GenerateJavaStubs, except when AndroidUseManagedTypeMaps is enabled -->
   <RemoveRegisterAttribute
-    Condition="'$(AndroidLinkMode)' != 'None' and '$(AndroidIncludeDebugSymbols)' != 'true' and '$(AndroidStripILAfterAOT)' != 'true' and '$(_AndroidRuntime)' != 'NativeAOT' "
+    Condition="'$(AndroidLinkMode)' != 'None' and '$(AndroidIncludeDebugSymbols)' != 'true' and '$(AndroidStripILAfterAOT)' != 'true' and '$(_AndroidRuntime)' != 'NativeAOT' and '$(AndroidUseManagedTypeMaps)' != 'true'"
     ShrunkFrameworkAssemblies="@(_ShrunkAssemblies)" />
+
+  <!-- Workaround for Release builds which depend on shrunk paths -->
+  <ItemGroup Condition="'$(AndroidUseManagedTypeMaps)' == 'true'">
+    <ShrunkFrameworkAssemblies Include="@(_ShrunkAssemblies)" />
+  </ItemGroup>
 
   <MakeDir Directories="$(MonoAndroidIntermediateAssemblyDir)shrunk" />
   <Touch Files="$(_RemoveRegisterFlag)" AlwaysCreate="true" />
