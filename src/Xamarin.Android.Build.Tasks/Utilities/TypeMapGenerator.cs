@@ -9,6 +9,7 @@ using Microsoft.Build.Utilities;
 using Java.Interop.Tools.Cecil;
 using Microsoft.Build.Utilities;
 using Mono.Cecil;
+using Mono.Cecil.Cil;
 using Microsoft.Android.Build.Tasks;
 using Xamarin.Android.Tools;
 
@@ -21,6 +22,18 @@ namespace Xamarin.Android.Tasks
 		const uint TypeMapFormatVersion = 2; // Keep in sync with the value in src/monodroid/jni/xamarin-app.hh
 		const string TypemapExtension = ".typemap";
 		const uint InvalidJavaToManagedMappingIndex = UInt32.MaxValue;
+
+		internal interface ITypeMapEntry
+		{
+			public string GetJavaTypeName();
+			public string GetManagedTypeName();
+			public TypeDefinition GetTypeDefinition();
+		}
+
+		internal interface ITypeMapEntries
+		{
+			IEnumerable<ITypeMapEntry> GetEntries();
+		}
 
 		internal sealed class ModuleUUIDArrayComparer : IComparer<ModuleReleaseData>
 		{
@@ -43,7 +56,7 @@ namespace Xamarin.Android.Tasks
 			}
 		}
 
-		internal sealed class TypeMapReleaseEntry
+		internal sealed class TypeMapReleaseEntry : ITypeMapEntry
 		{
 			public string JavaName;
 			public string ManagedTypeName;
@@ -51,9 +64,13 @@ namespace Xamarin.Android.Tasks
 			public int AssemblyNameIndex = -1;
 			public int ModuleIndex = -1;
 			public bool SkipInJavaToManaged;
+			public TypeDefinition TypeDefinition;
+			public string GetJavaTypeName() => JavaName;
+			public string GetManagedTypeName() => ManagedTypeName;
+			public TypeDefinition GetTypeDefinition() => TypeDefinition;
 		}
 
-		internal sealed class ModuleReleaseData
+		internal sealed class ModuleReleaseData : ITypeMapEntries
 		{
 			public Guid Mvid;
 			public byte[] MvidBytes;
@@ -64,9 +81,11 @@ namespace Xamarin.Android.Tasks
 			public string OutputFilePath;
 
 			public Dictionary<string, TypeMapReleaseEntry> TypesScratch;
+
+			public IEnumerable<ITypeMapEntry> GetEntries() => Types;
 		}
 
-		internal sealed class TypeMapDebugEntry
+		internal sealed class TypeMapDebugEntry : ITypeMapEntry
 		{
 			public string JavaName;
 			public string JavaLabel;
@@ -82,10 +101,14 @@ namespace Xamarin.Android.Tasks
 			{
 				return $"TypeMapDebugEntry{{JavaName={JavaName}, ManagedName={ManagedName}, JavaIndex={JavaIndex}, ManagedIndex={ManagedIndex}, SkipInJavaToManaged={SkipInJavaToManaged}, DuplicateForJavaToManaged={DuplicateForJavaToManaged}}}";
 			}
+
+			public string GetJavaTypeName() => JavaName;
+			public string GetManagedTypeName() => ManagedName;
+			public TypeDefinition GetTypeDefinition() => TypeDefinition;
 		}
 
 		// Widths include the terminating nul character but not the padding!
-		internal sealed class ModuleDebugData
+		internal sealed class ModuleDebugData : ITypeMapEntries
 		{
 			public uint EntryCount;
 			public uint JavaNameWidth;
@@ -95,6 +118,7 @@ namespace Xamarin.Android.Tasks
 			public string OutputFilePath;
 			public string ModuleName;
 			public byte[] ModuleNameBytes;
+			public IEnumerable<ITypeMapEntry> GetEntries() => JavaToManagedMap;
 		}
 
 		sealed class ReleaseGenerationState
@@ -131,16 +155,18 @@ namespace Xamarin.Android.Tasks
 		readonly byte[] typemapIndexMagicString;
 		readonly TaskLoggingHelper log;
 		readonly NativeCodeGenState state;
+		bool useManagedTypeMaps;
 
 		public IList<string> GeneratedBinaryTypeMaps { get; } = new List<string> ();
 
-		public TypeMapGenerator (TaskLoggingHelper log, NativeCodeGenState state)
+		public TypeMapGenerator (TaskLoggingHelper log, NativeCodeGenState state, bool useManagedTypeMaps)
 		{
 			this.log = log ?? throw new ArgumentNullException (nameof (log));
 			this.state = state ?? throw new ArgumentNullException (nameof (state));
 			outputEncoding = Files.UTF8withoutBOM;
 			moduleMagicString = outputEncoding.GetBytes (TypeMapMagicString);
 			typemapIndexMagicString = outputEncoding.GetBytes (TypeMapIndexMagicString);
+			this.useManagedTypeMaps = useManagedTypeMaps;
 		}
 
 		void UpdateApplicationConfig (TypeDefinition javaType)
@@ -240,6 +266,10 @@ namespace Xamarin.Android.Tasks
 				PrepareDebugMaps (module);
 			}
 
+			if (useManagedTypeMaps) {
+				GenerateManagedTypeMaps(modules.Values);
+			}
+
 			string typeMapIndexPath = Path.Combine (typemapFilesOutputDirectory, "typemap.index");
 			using (var indexWriter = MemoryStreamPool.Shared.CreateBinaryWriter ()) {
 				OutputModules (modules, indexWriter, maxModuleFileNameWidth + 1);
@@ -278,6 +308,10 @@ namespace Xamarin.Android.Tasks
 			};
 
 			PrepareDebugMaps (data);
+
+			if (useManagedTypeMaps) {
+				GenerateManagedTypeMaps(new List<ModuleDebugData> { data });
+			}
 
 			var composer = new TypeMappingDebugNativeAssemblyGenerator (log, data);
 			GenerateNativeAssembly (composer, composer.Construct (), outputDirectory);
@@ -410,6 +444,7 @@ namespace Xamarin.Android.Tasks
 				Token = td.MetadataToken.ToUInt32 (),
 				AssemblyNameIndex = genState.KnownAssemblies [genState.GetAssemblyName (td)],
 				SkipInJavaToManaged = ShouldSkipInJavaToManaged (td),
+				TypeDefinition = td
 			};
 
 			if (moduleData.TypesScratch.ContainsKey (entry.JavaName)) {
@@ -421,6 +456,65 @@ namespace Xamarin.Android.Tasks
 			} else {
 				moduleData.TypesScratch.Add (entry.JavaName, entry);
 			}
+		}
+
+		void GenerateManagedTypeMaps(IEnumerable<ITypeMapEntries> typeMapEntries)
+		{
+			// resolve Mono.Android
+			var managedTypeMapsAssembly = state.Resolver.Resolve ("Mono.Android");
+			
+			TypeDefinition typeManagerDefinition = managedTypeMapsAssembly.MainModule.Types.First(t => t.FullName == "Java.Interop.TypeManager");
+			FieldDefinition javaToManagedDictionaryBackingField = typeManagerDefinition.Fields.First(f => f.Name.Contains("JavaToManagedTypeMapping")); // TODO: look for backing field in the pattern?
+			MethodDefinition? cctor = typeManagerDefinition.Methods.FirstOrDefault(m => m.Name == ".cctor");
+			// add dictionary initialization to the type initializer
+			if (cctor == null)
+			{
+				cctor = new MethodDefinition(
+					".cctor",
+					Mono.Cecil.MethodAttributes.Static | Mono.Cecil.MethodAttributes.Private | Mono.Cecil.MethodAttributes.SpecialName | Mono.Cecil.MethodAttributes.RTSpecialName,
+					managedTypeMapsAssembly.MainModule.TypeSystem.Void
+				);
+				typeManagerDefinition.Methods.Add(cctor);
+				cctor.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+			}
+
+			ILProcessor il = cctor.Body.GetILProcessor();
+			Instruction ret = cctor.Body.Instructions.Last();
+
+			// create new dictionaries
+			il.InsertBefore(ret, Instruction.Create(OpCodes.Nop));
+			il.InsertBefore(ret, Instruction.Create(OpCodes.Newobj, managedTypeMapsAssembly.MainModule.ImportReference(typeof(Dictionary<string, Type>).GetConstructor(Type.EmptyTypes))));
+ 	 	    il.InsertBefore(ret, Instruction.Create(OpCodes.Stsfld, javaToManagedDictionaryBackingField));
+
+			// store the mappings
+			foreach (ITypeMapEntries mapEntry in typeMapEntries)
+			{
+				foreach (ITypeMapEntry entry in mapEntry.GetEntries())
+				{
+					var javaName = entry.GetJavaTypeName();
+					var managedTypeDefinition = entry.GetTypeDefinition();
+					var managedTypeReference = managedTypeDefinition.Module == managedTypeMapsAssembly.MainModule ? 
+						managedTypeDefinition : managedTypeMapsAssembly.MainModule.ImportReference(managedTypeDefinition);
+					
+					il.InsertBefore(ret, Instruction.Create(OpCodes.Nop));
+					// load dictonary backing field
+					il.InsertBefore(ret, Instruction.Create(OpCodes.Ldsfld, javaToManagedDictionaryBackingField));
+					// load java name string
+					il.InsertBefore(ret, Instruction.Create(OpCodes.Ldstr, javaName));
+					// typeof(managedType)
+					il.InsertBefore(ret, Instruction.Create(OpCodes.Ldtoken, managedTypeReference));
+					il.InsertBefore(ret, Instruction.Create(OpCodes.Call, managedTypeMapsAssembly.MainModule.ImportReference(typeof(Type).GetMethod("GetTypeFromHandle"))));
+					// JavaToManagedTypeMapping[javaName] = typeof(managedType);
+					il.InsertBefore(ret, Instruction.Create(OpCodes.Callvirt, managedTypeMapsAssembly.MainModule.ImportReference(typeof(Dictionary<string, Type>).GetProperty("Item").GetSetMethod())));
+				}
+			}
+
+			// save Mono.Android
+			string? assemblyPath = managedTypeMapsAssembly.MainModule.FileName;
+			if (String.IsNullOrEmpty (assemblyPath)) {
+				throw new InvalidOperationException ($"Unable to determine the file path for the managed type maps assembly.");
+			}
+			managedTypeMapsAssembly.Write(assemblyPath);
 		}
 
 		bool GenerateRelease (bool skipJniAddNativeMethodRegistrationAttributeScan, string outputDirectory)
@@ -444,6 +538,10 @@ namespace Xamarin.Android.Tasks
 				module.Types = module.TypesScratch.Values.ToArray ();
 			}
 
+			if (useManagedTypeMaps) {
+				GenerateManagedTypeMaps(modules);
+			}
+			
 			var composer = new TypeMappingReleaseNativeAssemblyGenerator (log, new NativeTypeMappingData (log, modules));
 			GenerateNativeAssembly (composer, composer.Construct (), outputDirectory);
 
