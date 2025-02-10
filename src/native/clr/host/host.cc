@@ -1,4 +1,4 @@
-#include <clr/hosts/coreclrhost.h>
+#include <coreclrhost.h>
 
 #include <xamarin-app.hh>
 #include <host/assembly-store.hh>
@@ -156,14 +156,46 @@ void Host::Java_mono_android_Runtime_initInternal (JNIEnv *env, jclass runtimeCl
 
 	log_write (LOG_DEFAULT, LogLevel::Info, "Calling CoreCLR initialization routine");
 	coreclr_set_error_writer (clr_error_writer);
-	int hr = android_coreclr_initialize (
-		application_config.android_package_name,
-		u"Xamarin.Android",
-		&runtime_contract,
-		&host_config_properties,
-		&clr_host,
-		&domain_id
-	);
+
+	char* executable_path = nullptr;
+	char* executable = nullptr;
+	char* bundle_path = nullptr;
+	const char* appctx_keys[3];
+    appctx_keys[0] = "RUNTIME_IDENTIFIER";
+    appctx_keys[1] = "APP_CONTEXT_BASE_DIRECTORY";
+    appctx_keys[2] = "TRUSTED_PLATFORM_ASSEMBLIES";
+
+	const char* appctx_values[3];
+    appctx_values[0] = "android-arm64";
+    appctx_values[1] = bundle_path;
+	appctx_values[2] = nullptr; // TODO; get_tpas_from_path (bundle_path);
+    // size_t tpas_len = get_tpas_from_path(bundle_path, &appctx_values[2]);
+
+	unsigned int coreclr_domainId = 0;
+    void *coreclr_handle = NULL;
+
+	int hr = coreclr_initialize (
+		executable_path,
+		executable,
+		3,
+		appctx_keys,
+		appctx_values,
+		&coreclr_handle,
+		&coreclr_domainId
+		);
+
+	// how about no :)
+	// int hr = android_coreclr_initialize (
+	// 	application_config.android_package_name,
+	// 	u"Xamarin.Android",
+	// 	&runtime_contract,
+	// 	&host_config_properties,
+	// 	&clr_host,
+	// 	&domain_id
+	// );
+
+	// TODO: initialize
+
 	log_debug (LOG_ASSEMBLY, "CoreCLR init result == {:x}; clr_host == {:p}; domain ID == {}", static_cast<unsigned int>(hr), clr_host, domain_id);
 	// TODO: make S_OK & friends known to us
 	// if (hr != S_OK) {

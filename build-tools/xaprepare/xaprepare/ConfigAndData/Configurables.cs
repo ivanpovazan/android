@@ -257,13 +257,14 @@ namespace Xamarin.Android.Prepare
 
 				// TODO: The nuget id and the ref package version are guesses atm, since the CoreCLR packages don't exist yet
 				Log.Instance.Todo ("The nuget id and the ref package version are guesses atm, since the CoreCLR packages don't exist yet");
-				return Path.Combine (
-					XAPackagesDir,
-					$"microsoft.netcore.app.runtime.coreclr.android-{androidTarget}",
-					ctx.Properties.GetRequiredValue (KnownProperties.MicrosoftNETCoreAppRefPackageVersion),
-					"runtimes",
-					$"android-{androidTarget}"
-				);
+				return @"/Users/ivan/repos/runtime-mono-iOS/artifacts/bin/microsoft.netcore.app.runtime.android-arm64/Debug/runtimes/android-arm64";
+				// return Path.Combine (
+				// 	XAPackagesDir,
+				// 	$"microsoft.netcore.app.runtime.coreclr.android-{androidTarget}",
+				// 	ctx.Properties.GetRequiredValue (KnownProperties.MicrosoftNETCoreAppRefPackageVersion),
+				// 	"runtimes",
+				// 	$"android-{androidTarget}"
+				// );
 			}
 
 			static string EnsureAndroidToolchainBinDirectories ()

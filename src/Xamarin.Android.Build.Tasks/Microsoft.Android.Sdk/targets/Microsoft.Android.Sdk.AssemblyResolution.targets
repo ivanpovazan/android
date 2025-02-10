@@ -133,6 +133,10 @@ _ResolveAssemblies MSBuild target.
 
     <ItemGroup>
       <ResolvedFileToPublish Include="@(_AddSharedLibrariesClrHack)" />
+      <!-- EONE: we need this if we are using older dotnet SDK - the one that does not resolve android-arm64 for CoreCLR -->
+      <ResolvedFileToPublish Update="@(ResolvedFileToPublish)" Condition="'%(RuntimeIdentifier)' == 'linux-bionic-arm64'">
+        <RuntimeIdentifier>android-arm64</RuntimeIdentifier>
+      </ResolvedFileToPublish>
     </ItemGroup>
 
     <MaybeUseLocalCLR

@@ -3,7 +3,7 @@
 #include <string_view>
 
 #include <jni.h>
-#include <corehost/host_runtime_contract.h>
+// #include <corehost/host_runtime_contract.h>
 
 #include "../runtime-base/jni-wrappers.hh"
 #include "../runtime-base/timing.hh"
@@ -68,13 +68,13 @@ namespace xamarin::android {
 		static inline JavaVM *jvm = nullptr;
 		static inline jmethodID Class_getName = nullptr;
 
-		static inline host_runtime_contract runtime_contract{
-			.size = sizeof(host_runtime_contract),
-			.context = nullptr,
-			.get_runtime_property = clr_get_runtime_property,
-			.android_bundle_probe = clr_bundle_probe,
-			.bundle_probe = nullptr,
-			.pinvoke_override = clr_pinvoke_override,
-		};
+		// static inline host_runtime_contract runtime_contract{
+		// 	.size = sizeof(host_runtime_contract),
+		// 	.context = nullptr,
+		// 	.get_runtime_property = clr_get_runtime_property,
+		// 	.android_bundle_probe = clr_bundle_probe,
+		// 	.bundle_probe = nullptr,
+		// 	.pinvoke_override = clr_pinvoke_override,
+		// };
 	};
 }

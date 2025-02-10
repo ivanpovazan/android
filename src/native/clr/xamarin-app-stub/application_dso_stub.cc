@@ -339,26 +339,26 @@ const RuntimePropertyIndexEntry runtime_property_index[] = {
 	},
 };
 
-namespace {
-	const host_configuration_property _host_configuration_properties_data[] = {
-		{
-			.name = u"test_string",
-			.value = u"string value",
-		},
+// namespace {
+// 	const host_configuration_property _host_configuration_properties_data[] = {
+// 		{
+// 			.name = u"test_string",
+// 			.value = u"string value",
+// 		},
 
-		{
-			.name = u"test_integer",
-			.value = u"23",
-		},
+// 		{
+// 			.name = u"test_integer",
+// 			.value = u"23",
+// 		},
 
-		{
-			.name = u"test_boolean",
-			.value = u"true",
-		},
-	};
-}
+// 		{
+// 			.name = u"test_boolean",
+// 			.value = u"true",
+// 		},
+// 	};
+// }
 
-const host_configuration_properties host_config_properties = {
-	.nitems = 3,
-	.data = _host_configuration_properties_data,
-};
+// const host_configuration_properties host_config_properties = {
+// 	.nitems = 3,
+// 	.data = _host_configuration_properties_data,
+// };
