@@ -78,7 +78,7 @@ class DSOWrapperGenerator
 		return new Config (stubPaths, androidBinUtilsDirectory, baseOutputDirectory);
 	}
 
-	static string GetArchOutputPath (AndroidTargetArch targetArch, Config config)
+	public static string GetArchOutputPath (AndroidTargetArch targetArch, Config config)
 	{
 		return Path.Combine (config.BaseOutputDirectory, MonoAndroidHelper.ArchToRid (targetArch), "wrapped");
 	}

@@ -83,30 +83,24 @@ public class WrapAssembliesAsSharedLibraries : AndroidTask
 		// For this reason, they have to be treated just like other .so files, as far as compression rules are concerned.
 		// Thus, we no longer just store them in the apk but we call the `GetCompressionMethod` method to find out whether
 		// or not we're supposed to compress .so files.
-		var sourcePath = assembly.GetMetadataOrDefault ("CompressedAssembly", assembly.ItemSpec);
+		// var sourcePath = assembly.GetMetadataOrDefault ("CompressedAssembly", assembly.ItemSpec);
 
 		// Add assembly
-		(var assemblyPath, var assemblyDirectory) = GetInArchiveAssemblyPath (assembly);
-		var wrappedSourcePath = DSOWrapperGenerator.WrapIt (log, dsoWrapperConfig, arch, sourcePath, Path.GetFileName (assemblyPath));
-		files.AddItem (wrappedSourcePath, assemblyPath);
+		(var archive_path, var assemblyDirectory) = GetInArchiveAssemblyPath (assembly);
 
-		// Try to add config if exists
-		var config = Path.ChangeExtension (assembly.ItemSpec, "dll.config");
-		AddAssemblyConfigEntry (dsoWrapperConfig, files, arch, assemblyDirectory, config);
-
-		// Try to add symbols if Debug
-		if (!IncludeDebugSymbols) {
-			return;
+		var assembly_path = assembly.ItemSpec;		
+		var fileName = Path.GetFileName (assembly_path);
+		var outdir_path = DSOWrapperGenerator.GetArchOutputPath(arch, dsoWrapperConfig);
+		if (!Directory.Exists(outdir_path))
+		{
+			Directory.CreateDirectory(outdir_path);
 		}
 
-		var symbols = Path.ChangeExtension (assembly.ItemSpec, "pdb");
-		if (!File.Exists (symbols)) {
-			return;
-		}
+		var destinationPath = Path.Combine(outdir_path, Path.GetFileName(assembly_path));
+		File.Copy(assembly_path, destinationPath, overwrite: true);
 
-		var archiveSymbolsPath = assemblyDirectory + MonoAndroidHelper.MakeDiscreteAssembliesEntryName (Path.GetFileName (symbols));
-		var wrappedSymbolsPath = DSOWrapperGenerator.WrapIt (log, dsoWrapperConfig, arch, symbols, Path.GetFileName (archiveSymbolsPath));
-		files.AddItem (wrappedSymbolsPath, archiveSymbolsPath);
+		// var archive_path = Path.Combine (abi, "lib", fileName);
+		files.AddItem (destinationPath, archive_path);
 	}
 
 	static string MakeArchiveLibPath (string abi, string fileName) => MonoAndroidHelper.MakeZipArchivePath (ArchiveLibPath, abi, fileName);
@@ -143,7 +137,7 @@ public class WrapAssembliesAsSharedLibraries : AndroidTask
 		if (subdirParts.Length == 1) {
 			// Not a satellite assembly
 			parts.Add (subDirectory);
-			parts.Add (MonoAndroidHelper.MakeDiscreteAssembliesEntryName (assemblyName));
+			parts.Add (assemblyName);
 		} else if (subdirParts.Length == 2) {
 			parts.Add (subdirParts [0]);
 			parts.Add (MonoAndroidHelper.MakeDiscreteAssembliesEntryName (assemblyName, subdirParts [1]));

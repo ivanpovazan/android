@@ -69,19 +69,8 @@ namespace Xamarin.Android.Tasks
 			// Set ShrunkAssemblies for _RemoveRegisterAttribute and <BuildApk/>
 			// This should match the Condition on the _RemoveRegisterAttribute target
 			if (PublishTrimmed) {
-				if (!AndroidIncludeDebugSymbols) {
-					var shrunkAssemblies = new List<ITaskItem> (OutputAssemblies.Length);
-					foreach (var assembly in OutputAssemblies) {
-						var dir = Path.GetDirectoryName (assembly.ItemSpec);
-						var file = Path.GetFileName (assembly.ItemSpec);
-						shrunkAssemblies.Add (new TaskItem (assembly) {
-							ItemSpec = Path.Combine (dir, "shrunk", file),
-						});
-					}
-					ShrunkAssemblies = shrunkAssemblies.ToArray ();
-				} else {
-					ShrunkAssemblies = OutputAssemblies;
-				}
+				// TODO: Just don't do anything with trimmed assemblies
+				ShrunkAssemblies = OutputAssemblies;
 			}
 
 			if (InputJavaLibraries != null) {
