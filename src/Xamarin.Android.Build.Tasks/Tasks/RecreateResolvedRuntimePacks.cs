@@ -27,7 +27,7 @@ public class RecreateResolvedRuntimePacks : AndroidTask
 		"libarchive-dso-stub.so",
 		"libc.so",
 		"libdl.so",
-		"liblog.so",
+		// "liblog.so",
 		"libm.so",
 		"libz.so",
 	];
