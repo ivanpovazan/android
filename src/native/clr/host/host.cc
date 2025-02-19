@@ -177,6 +177,7 @@ void Host::Java_mono_android_Runtime_initInternal (JNIEnv *env, jclass runtimeCl
 	AndroidSystem::setup_app_library_directories (runtimeApks, applicationDirs, haveSplitApks);
 
 	// gather_assemblies_and_libraries (runtimeApks, haveSplitApks);
+	// TODO: clean this up:
 
 	log_write (LOG_DEFAULT, LogLevel::Info, "Calling CoreCLR initialization routine");
 	coreclr_set_error_writer (clr_error_writer);
@@ -217,7 +218,6 @@ void Host::Java_mono_android_Runtime_initInternal (JNIEnv *env, jclass runtimeCl
 	char* executable_path = new char[executable_path_str.size() + 1];
 	std::strcpy(executable_path, executable_path_str.c_str());
 
-
 	const char* appctx_keys[4];
     appctx_keys[0] = "RUNTIME_IDENTIFIER";
     appctx_keys[1] = "APP_CONTEXT_BASE_DIRECTORY";
@@ -250,22 +250,8 @@ void Host::Java_mono_android_Runtime_initInternal (JNIEnv *env, jclass runtimeCl
 		&domain_id
 		);
 
-	// how about no :)
-	// int hr = android_coreclr_initialize (
-	// 	application_config.android_package_name,
-	// 	u"Xamarin.Android",
-	// 	&runtime_contract,
-	// 	&host_config_properties,
-	// 	&clr_host,
-	// 	&domain_id
-	// );
-
-	// TODO: initialize
-
 	log_debug (LOG_ASSEMBLY, "CoreCLR init result == {:x}; clr_host == {:p}; domain ID == {}", static_cast<unsigned int>(hr), clr_host, domain_id);
-	// TODO: make S_OK & friends known to us
-	// if (hr != S_OK) {
-	// }
+
 	log_write (LOG_DEFAULT, LogLevel::Info, "CoreCLR initialization routine returned");
 
 	abort_unless (
