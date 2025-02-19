@@ -36,12 +36,17 @@ namespace xamarin::android {
 	class Host
 	{
 		using jnienv_initialize_fn = void (*) (JnienvInitializeArgs*);
+		using jnienv_register_jni_natives_fn = void (*)(const jchar *typeName_ptr, int32_t typeName_len, jclass jniClass, const jchar *methods_ptr, int32_t methods_len);
 
 	public:
 		static auto Java_JNI_OnLoad (JavaVM *vm, void *reserved) noexcept -> jint;
 		static void Java_mono_android_Runtime_initInternal (JNIEnv *env, jclass klass, jstring lang, jobjectArray runtimeApksJava,
 			jstring runtimeNativeLibDir, jobjectArray appDirs, jint localDateTimeOffset, jobject loader,
 			jobjectArray assembliesJava, jboolean isEmulator, jboolean haveSplitApks);
+
+		static void register_jni_natives(const jchar *typeName_ptr, int32_t typeName_len, jclass jniClass, const jchar *methods_ptr, int32_t methods_len);
+
+		static char* get_java_class_name_for_TypeManager (jclass klass) noexcept;
 
 		static auto get_timing () -> Timing*
 		{
@@ -67,6 +72,9 @@ namespace xamarin::android {
 
 		static inline JavaVM *jvm = nullptr;
 		static inline jmethodID Class_getName = nullptr;
+		static inline JNIEnv *privateEnv = nullptr;
+
+		static inline jnienv_register_jni_natives_fn jnienv_register_jni_natives = nullptr;
 
 		// static inline host_runtime_contract runtime_contract{
 		// 	.size = sizeof(host_runtime_contract),

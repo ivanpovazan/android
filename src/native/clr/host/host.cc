@@ -12,8 +12,31 @@
 #include <runtime-base/timing-internal.hh>
 #include <shared/log_types.hh>
 #include <startup/zip.hh>
+#include <vector>
+#include <dirent.h>
 
 using namespace xamarin::android;
+
+void Host::register_jni_natives(const jchar *typeName_ptr, int32_t typeName_len, jclass jniClass, const jchar *methods_ptr, int32_t methods_len)
+{
+	void *delegate = nullptr;
+	int hr = coreclr_create_delegate (
+		clr_host,
+		domain_id,
+		Constants::MONO_ANDROID_ASSEMBLY_NAME.data (),
+		Constants::JNIENVINIT_FULL_TYPE_NAME.data (),
+		"RegisterJniNatives",
+		&delegate
+	);
+	log_debug (LOG_ASSEMBLY, "Delegate creation result == {:x}; delegate == {:p}", static_cast<unsigned int>(hr), delegate);
+
+	jnienv_register_jni_natives = reinterpret_cast<jnienv_register_jni_natives_fn>(delegate);
+
+	log_debug (LOG_ASSEMBLY, "Calling RegisterJniNatives");
+	jnienv_register_jni_natives(typeName_ptr, typeName_len, jniClass, methods_ptr, methods_len);
+
+	log_debug (LOG_ASSEMBLY, "Calling returned");
+}
 
 void Host::clr_error_writer (const char *message) noexcept
 {
@@ -122,6 +145,7 @@ void Host::Java_mono_android_Runtime_initInternal (JNIEnv *env, jclass runtimeCl
 	jstring runtimeNativeLibDir, jobjectArray appDirs, jint localDateTimeOffset, jobject loader,
 	jobjectArray assembliesJava, jboolean isEmulator, jboolean haveSplitApks)
 {
+	privateEnv = env;
 	Logger::init_logging_categories ();
 
 	// If fast logging is disabled, log messages immediately
@@ -152,36 +176,78 @@ void Host::Java_mono_android_Runtime_initInternal (JNIEnv *env, jclass runtimeCl
 	jstring_array_wrapper runtimeApks (env, runtimeApksJava);
 	AndroidSystem::setup_app_library_directories (runtimeApks, applicationDirs, haveSplitApks);
 
-	gather_assemblies_and_libraries (runtimeApks, haveSplitApks);
+	// gather_assemblies_and_libraries (runtimeApks, haveSplitApks);
 
 	log_write (LOG_DEFAULT, LogLevel::Info, "Calling CoreCLR initialization routine");
 	coreclr_set_error_writer (clr_error_writer);
 
-	char* executable_path = nullptr;
-	char* executable = nullptr;
-	char* bundle_path = nullptr;
-	const char* appctx_keys[3];
+
+	const char* path = env->GetStringUTFChars(runtimeNativeLibDir, nullptr);
+
+	std::vector<std::string> files;
+	DIR* dir = opendir(path);
+	if (dir == nullptr) {
+			log_write (LOG_DEFAULT, LogLevel::Info, "dir is null");
+	}
+
+	struct dirent* entry;
+	while ((entry = readdir(dir)) != nullptr) {
+		if (entry->d_type == DT_REG) {
+			std::string file_name = entry->d_name;
+			if (file_name.size() >= 4 && file_name.substr(file_name.size() - 4) == ".dll") {
+				files.emplace_back(file_name);
+			}
+		}
+	}
+
+	for (const auto& file : files) {
+		log_write (LOG_DEFAULT, LogLevel::Info, "Found file: " + file);
+	}
+
+	std::string result;
+	for (const auto& file : files) {
+		if (!result.empty()) {
+			result += ":";
+		}
+		result += std::string(path) + "/" + file;
+	}
+	log_write(LOG_DEFAULT, LogLevel::Info, "Resulting string: " + result);
+
+	std::string executable_path_str = std::string(path) + "/" + Constants::MONO_ANDROID_ASSEMBLY_NAME.data () + ".dll";
+	char* executable_path = new char[executable_path_str.size() + 1];
+	std::strcpy(executable_path, executable_path_str.c_str());
+
+
+	const char* appctx_keys[4];
     appctx_keys[0] = "RUNTIME_IDENTIFIER";
     appctx_keys[1] = "APP_CONTEXT_BASE_DIRECTORY";
     appctx_keys[2] = "TRUSTED_PLATFORM_ASSEMBLIES";
+	appctx_keys[3] = "PINVOKE_OVERRIDE";
 
-	const char* appctx_values[3];
+	const char* appctx_values[4];
     appctx_values[0] = "android-arm64";
-    appctx_values[1] = bundle_path;
-	appctx_values[2] = nullptr; // TODO; get_tpas_from_path (bundle_path);
-    // size_t tpas_len = get_tpas_from_path(bundle_path, &appctx_values[2]);
+	appctx_values[1] = path;
+
+
+	char* tpa_list = new char[result.size() + 1];
+	std::strcpy(tpa_list, result.c_str());
+	appctx_values[2] = tpa_list;
+
+	char pinvoke_override_addr [16];
+    sprintf (pinvoke_override_addr, "%p", &clr_pinvoke_override);
+	appctx_values[3] = pinvoke_override_addr;
 
 	unsigned int coreclr_domainId = 0;
     void *coreclr_handle = NULL;
 
 	int hr = coreclr_initialize (
 		executable_path,
-		executable,
-		3,
+		Constants::MONO_ANDROID_ASSEMBLY_NAME.data (),
+		4,
 		appctx_keys,
 		appctx_values,
-		&coreclr_handle,
-		&coreclr_domainId
+		&clr_host,
+		&domain_id
 		);
 
 	// how about no :)
@@ -286,4 +352,38 @@ auto Host::Java_JNI_OnLoad (JavaVM *vm, [[maybe_unused]] void *reserved) noexcep
 	jvm = vm;
 	AndroidSystem::init_max_gref_count ();
 	return JNI_VERSION_1_6;
+}
+
+char*
+Host::get_java_class_name_for_TypeManager (jclass klass) noexcept
+{
+	log_debug (LOG_ASSEMBLY, "get_java_class_name_for_TypeManager klass: {:p}", reinterpret_cast<void*>(klass));
+	if (klass == nullptr || Class_getName == nullptr)
+		return nullptr;
+
+	JNIEnv *env = privateEnv; //OSBridge.ensure_jnienv ();
+	jstring name = reinterpret_cast<jstring> (env->CallObjectMethod (klass, Class_getName));
+	if (name == nullptr) {
+		log_error (LOG_DEFAULT, "Failed to obtain Java class name for object at {:p}", reinterpret_cast<void*>(klass));
+		return nullptr;
+	}
+
+	const char *mutf8 = env->GetStringUTFChars (name, nullptr);
+	if (mutf8 == nullptr) {
+		log_error (LOG_DEFAULT, "Failed to convert Java class name to UTF8 (out of memory?)"sv);
+		env->DeleteLocalRef (name);
+		return nullptr;
+	}
+	char *ret = strdup (mutf8);
+
+	env->ReleaseStringUTFChars (name, mutf8);
+	env->DeleteLocalRef (name);
+
+	char *dot = strchr (ret, '.');
+	while (dot != nullptr) {
+		*dot = '/';
+		dot = strchr (dot + 1, '.');
+	}
+
+	return ret;
 }

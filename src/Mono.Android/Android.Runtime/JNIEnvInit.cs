@@ -69,6 +69,7 @@ namespace Android.Runtime
 			}
 
 			var className = Java.Interop.TypeManager.GetClassName (jniClass);
+			Logger.Log (LogLevel.Info, "RegisterJniNatives", $"className: {className}");
 			Java.Interop.TypeManager.RegisterType (className, type);
 
 			JniType? jniType = null;
@@ -93,6 +94,7 @@ namespace Android.Runtime
 			IntPtr partial_timing_sequence = IntPtr.Zero;
 
 			Logger.SetLogCategories ((LogCategories)args->logCategories);
+			Logger.Log (LogLevel.Info, "JNIEnvInit", "Initializing JNIEnv runtime");
 
 			gref_gc_threshold = args->grefGcThreshold;
 

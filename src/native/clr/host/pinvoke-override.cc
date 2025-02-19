@@ -86,10 +86,24 @@ auto PinvokeOverride::monodroid_pinvoke_override (const char *library_name, cons
 	return handle_other_pinvoke_request (library_name, library_name_hash, entrypoint_name, entrypoint_hash);
 }
 
+// TODO: remove this
+int myandroid_log_print(int prio, const char *tag, const char *text)
+{
+	log_info (LOG_ASSEMBLY, "myandroid_log_print");
+	return 0;
+}
+
 const void* Host::clr_pinvoke_override (const char *library_name, const char *entry_point_name) noexcept
 {
 	log_info (LOG_ASSEMBLY, "clr_pinvoke_override (\"{}\", \"{}\")", library_name, entry_point_name);
-	void *ret = PinvokeOverride::monodroid_pinvoke_override (library_name, entry_point_name);
+	void *ret;
+	// TODO: remove this
+	if (strcmp(entry_point_name, "__android_log_print") == 0) {
+		ret = reinterpret_cast<void*>(myandroid_log_print);
+	} else {
+		ret = PinvokeOverride::monodroid_pinvoke_override (library_name, entry_point_name);
+	}
 	log_debug (LOG_DEFAULT, "p/invoke {}found", ret == nullptr ? "not"sv : ""sv);
 	return ret;
 }
+

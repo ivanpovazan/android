@@ -1,7 +1,7 @@
 #include <host/host.hh>
 #include <host/host-jni.hh>
 #include <shared/log_types.hh>
-
+#include <coreclrhost.h>
 using namespace xamarin::android;
 
 JNIEXPORT jint JNICALL
@@ -25,6 +25,13 @@ JNICALL Java_mono_android_Runtime_dumpTimingData ([[maybe_unused]] JNIEnv *env, 
 JNIEXPORT void
 JNICALL Java_mono_android_Runtime_register (JNIEnv *env, [[maybe_unused]] jclass klass, jstring managedType, jclass nativeClass, jstring methods)
 {
+	log_write (LOG_DEFAULT, LogLevel::Info, "Java_mono_android_Runtime_register");
+	jsize managedType_len = env->GetStringLength (managedType);
+	const jchar *managedType_ptr = env->GetStringChars (managedType, nullptr);
+	int methods_len = env->GetStringLength (methods);
+	const jchar *methods_ptr = env->GetStringChars (methods, nullptr);
+
+	Host::register_jni_natives(managedType_ptr, managedType_len, nativeClass, methods_ptr, methods_len);
 }
 
 JNIEXPORT void JNICALL
