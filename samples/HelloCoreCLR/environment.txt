@@ -1,0 +1,6 @@
+DOTNET_LogEnable=1
+DOTNET_LogFacility=4000
+DOTNET_LogLevel=6
+DOTNET_LogToAndroid=1
+DOTNET_LegacyExceptionHandling=0
+DOTNET_StressLog=1

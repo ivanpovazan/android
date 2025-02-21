@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>$(DotNetAndroidTargetFramework)</TargetFramework>
+    <SupportedOSPlatformVersion>21</SupportedOSPlatformVersion>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationId>com.companyname.HelloCoreCLR</ApplicationId>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <!--
+      Enables trim analyzers and full trimming during Release mode.
+      To learn more, see: https://learn.microsoft.com/dotnet/core/deploying/trimming/trimming-options#trimming-granularity
+    -->
+    <!-- Set supported props -->
+    <RuntimeIdentifier>android-arm64</RuntimeIdentifier>
+    <UseMonoRuntime>false</UseMonoRuntime>
+    <AndroidEnableMarshalMethods>false</AndroidEnableMarshalMethods>
+    <AndroidEnableProfiledAot>false</AndroidEnableProfiledAot>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <AndroidUseAssemblyStore>false</AndroidUseAssemblyStore>
+    <AndroidEnableAssemblyCompression>false</AndroidEnableAssemblyCompression>
+    <_AndroidAotStripLibraries>false</_AndroidAotStripLibraries>
+  </PropertyGroup>
+
+  <Target Name="_OverwriteRuntimePacks" AfterTargets="ResolveFrameworkReferences"
+    Condition="'$(UseLocalRuntimeBuild)' == 'true'">
+      <PropertyGroup>
+          <DotnetRuntimeRepo>/Users/ivan/repos/runtime-mono-iOS/</DotnetRuntimeRepo>
+      </PropertyGroup>
+      <ItemGroup>
+          <!-- update runtime pack to local build -->
+          <ResolvedRuntimePack PackageDirectory="$(DotnetRuntimeRepo)/artifacts/bin/microsoft.netcore.app.runtime.android-arm64/Debug"
+              Condition="'%(ResolvedRuntimePack.FrameworkName)' == 'Microsoft.NETCore.App'" />
+          <AndroidEnvironment Include="environment.txt" />
+      </ItemGroup>
+  </Target>
+
+</Project>
