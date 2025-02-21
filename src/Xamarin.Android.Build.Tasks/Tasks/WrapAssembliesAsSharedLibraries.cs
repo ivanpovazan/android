@@ -43,6 +43,10 @@ public class WrapAssembliesAsSharedLibraries : AndroidTask
 	[Output]
 	public ITaskItem [] WrappedAssemblies { get; set; } = [];
 
+	public string AndroidRuntime { get; set; } = "MonoVM";
+
+	private bool IsCoreCLR => AndroidRuntime.Equals ("CoreCLR", StringComparison.OrdinalIgnoreCase);
+
 	public override bool RunTask ()
 	{
 		var wrapper_config = DSOWrapperGenerator.GetConfig (Log, AndroidBinUtilsDirectory, ResolvedRuntimePacks, IntermediateOutputPath);
@@ -83,6 +87,22 @@ public class WrapAssembliesAsSharedLibraries : AndroidTask
 		// For this reason, they have to be treated just like other .so files, as far as compression rules are concerned.
 		// Thus, we no longer just store them in the apk but we call the `GetCompressionMethod` method to find out whether
 		// or not we're supposed to compress .so files.
+
+		if (IsCoreCLR) {
+			// don't wrap assemblies just move them into the output directory
+			(var archive_path, _) = GetInArchiveAssemblyPath (assembly);
+			var assembly_path = assembly.ItemSpec;		
+			var fileName = Path.GetFileName (assembly_path);
+			var outdir_path = DSOWrapperGenerator.GetArchOutputPath(arch, dsoWrapperConfig);
+			if (!Directory.Exists(outdir_path))
+				Directory.CreateDirectory(outdir_path);
+
+			var destinationPath = Path.Combine(outdir_path, Path.GetFileName(assembly_path));
+			File.Copy(assembly_path, destinationPath, overwrite: true);
+			files.AddItem (destinationPath, archive_path);
+			return;
+		}
+
 		var sourcePath = assembly.GetMetadataOrDefault ("CompressedAssembly", assembly.ItemSpec);
 
 		// Add assembly
@@ -143,7 +163,10 @@ public class WrapAssembliesAsSharedLibraries : AndroidTask
 		if (subdirParts.Length == 1) {
 			// Not a satellite assembly
 			parts.Add (subDirectory);
-			parts.Add (MonoAndroidHelper.MakeDiscreteAssembliesEntryName (assemblyName));
+			if (IsCoreCLR)
+				parts.Add (assemblyName);
+			else
+				parts.Add (MonoAndroidHelper.MakeDiscreteAssembliesEntryName (assemblyName)); 
 		} else if (subdirParts.Length == 2) {
 			parts.Add (subdirParts [0]);
 			parts.Add (MonoAndroidHelper.MakeDiscreteAssembliesEntryName (assemblyName, subdirParts [1]));

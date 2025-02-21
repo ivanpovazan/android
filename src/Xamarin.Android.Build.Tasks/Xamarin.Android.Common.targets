@@ -2191,8 +2191,9 @@ because xbuild doesn't support framework reference assemblies.
       UseAssemblyStore="$(AndroidUseAssemblyStore)">
     <Output TaskParameter="AssembliesToAddToArchive" ItemName="_BuildApkAssembliesToAddToArchive" />
   </CreateAssemblyStore>
-
+  
   <WrapAssembliesAsSharedLibraries
+      AndroidRuntime="$(_AndroidRuntime)"
       AndroidBinUtilsDirectory="$(AndroidBinUtilsDirectory)"
       IncludeDebugSymbols="$(AndroidIncludeDebugSymbols)"
       IntermediateOutputPath="$(IntermediateOutputPath)"
