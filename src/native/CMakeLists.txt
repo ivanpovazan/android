@@ -225,6 +225,20 @@ include_directories(common/include)
 if(IS_CLR_RUNTIME)
   set(XA_RUNTIME_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/clr/include)
 
+  set(CORECLRHOST_HEADER_URL "https://raw.githubusercontent.com/dotnet/runtime/f1b8d5a4448d072c9d390744777a87921e45bf2f/src/coreclr/hosts/inc/coreclrhost.h")
+  set(CORECLRHOST_HEADER_PATH "${XA_RUNTIME_INCLUDE_DIR}/coreclrhost.h")
+
+  if(IS_ABSOLUTE "${CORECLRHOST_HEADER_PATH}" AND NOT EXISTS "${CORECLRHOST_HEADER_PATH}")
+    add_custom_command(
+      OUTPUT ${CORECLRHOST_HEADER_PATH}
+      COMMAND ${CMAKE_COMMAND} -E echo "Downloading coreclrhost.h..."
+      COMMAND curl -L --fail --output ${CORECLRHOST_HEADER_PATH} ${CORECLRHOST_HEADER_URL}
+      COMMENT "Downloading coreclrhost.h from ${CORECLRHOST_HEADER_URL}"
+      VERBATIM
+    )
+    add_custom_target(download_coreclrhost_header ALL DEPENDS ${CORECLRHOST_HEADER_PATH})
+  endif()
+
   macro(xa_add_include_directories TARGET)
      target_include_directories(
         ${TARGET}

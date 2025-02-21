@@ -1,6 +1,7 @@
 #include <cstdio>
 
-#include <clr/hosts/coreclrhost.h>
+// EONE: coreclrhost.h is pretty stable, download it to the standard include path
+#include <coreclrhost.h>
 
 #include <xamarin-app.hh>
 #include <host/assembly-store.hh>
@@ -202,7 +203,7 @@ void Host::Java_mono_android_Runtime_initInternal (JNIEnv *env, jclass runtimeCl
 
 	coreclr_set_error_writer (clr_error_writer);
 	// We REALLY shouldn't be doing this
-	snprintf (host_contract_ptr_buffer.data (), host_contract_ptr_buffer.size (), "%p", &runtime_contract);
+	// snprintf (host_contract_ptr_buffer.data (), host_contract_ptr_buffer.size (), "%p", &runtime_contract);
 
 	// The first entry in the property arrays is for the host contract pointer. Application build makes sure
 	// of that.
