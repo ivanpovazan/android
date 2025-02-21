@@ -4,7 +4,9 @@
 #include <string_view>
 
 #include <jni.h>
+#if 0
 #include <corehost/host_runtime_contract.h>
+#endif
 
 #include <runtime-base/jni-wrappers.hh>
 #include "../runtime-base/timing.hh"
@@ -53,6 +55,7 @@ namespace xamarin::android {
 		static inline JavaVM *jvm = nullptr;
 		static inline jmethodID Class_getName = nullptr;
 
+#if 0
 		static inline host_runtime_contract runtime_contract{
 			.size = sizeof(host_runtime_contract),
 			.context = nullptr,
@@ -61,6 +64,7 @@ namespace xamarin::android {
 			.bundle_probe = nullptr,
 			.pinvoke_override = clr_pinvoke_override,
 		};
+#endif
 
 		// Enough to fit 0xffffffffffffffff + terminating NUL
 		static inline std::array<char, 19> host_contract_ptr_buffer{};

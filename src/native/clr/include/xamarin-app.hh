@@ -5,7 +5,9 @@
 #include <cstdint>
 
 #include <jni.h>
+#if 0
 #include <corehost/host_runtime_contract.h>
+#endif
 
 #include <shared/xxhash.hh>
 

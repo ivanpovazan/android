@@ -1,6 +1,5 @@
 #include <cstdio>
 
-// EONE: coreclrhost.h is pretty stable, download it to the standard include path
 #include <coreclrhost.h>
 
 #include <xamarin-app.hh>
