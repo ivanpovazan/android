@@ -14,6 +14,7 @@
 #include <runtime-base/timing-internal.hh>
 #include <shared/log_types.hh>
 #include <startup/zip.hh>
+#include <dirent.h>
 
 using namespace xamarin::android;
 
@@ -159,6 +160,40 @@ auto Host::create_delegate (
 	return delegate;
 }
 
+std::string Host::collect_tpas(const char* bundle_path)
+{
+	// Find all *.dll files in the bundle path
+	std::vector<std::string> files;
+	DIR* dir = opendir(bundle_path);
+	if (dir == nullptr)
+		Helpers::abort_application (LOG_DEFAULT, std::format ("Could not open directory: {}", bundle_path));
+
+	struct dirent* entry;
+	while ((entry = readdir(dir)) != nullptr) {
+		if (entry->d_type == DT_REG) {
+			std::string file_name = entry->d_name;
+			if (file_name.size() >= 4 && file_name.substr(file_name.size() - 4) == ".dll")
+				files.emplace_back(file_name);
+		}
+	}
+	closedir(dir);
+
+	log_write (LOG_DEFAULT, LogLevel::Info, std::format ("Found {} files", files.size()));	
+	for (const auto& file : files)
+		log_write (LOG_DEFAULT, LogLevel::Info, "Found file: " + file);
+
+	// Concat all assemblies as their full paths, separated by ":"
+	std::string result;
+	for (const auto& file : files) {
+		if (!result.empty()) {
+			result += ":";
+		}
+		result += std::string(bundle_path) + "/" + file;
+	}
+
+	return result;
+}
+
 void Host::Java_mono_android_Runtime_initInternal (JNIEnv *env, jclass runtimeClass, jstring lang, jobjectArray runtimeApksJava,
 	jstring runtimeNativeLibDir, jobjectArray appDirs, jint localDateTimeOffset, jobject loader,
 	jobjectArray assembliesJava, jboolean isEmulator, jboolean haveSplitApks) noexcept
@@ -193,6 +228,7 @@ void Host::Java_mono_android_Runtime_initInternal (JNIEnv *env, jclass runtimeCl
 	jstring_array_wrapper runtimeApks (env, runtimeApksJava);
 	AndroidSystem::setup_app_library_directories (runtimeApks, applicationDirs, haveSplitApks);
 
+#if 0
 	gather_assemblies_and_libraries (runtimeApks, haveSplitApks);
 
 	size_t clr_init_time_index;
@@ -202,7 +238,7 @@ void Host::Java_mono_android_Runtime_initInternal (JNIEnv *env, jclass runtimeCl
 
 	coreclr_set_error_writer (clr_error_writer);
 	// We REALLY shouldn't be doing this
-	// snprintf (host_contract_ptr_buffer.data (), host_contract_ptr_buffer.size (), "%p", &runtime_contract);
+	snprintf (host_contract_ptr_buffer.data (), host_contract_ptr_buffer.size (), "%p", &runtime_contract);
 
 	// The first entry in the property arrays is for the host contract pointer. Application build makes sure
 	// of that.
@@ -220,6 +256,37 @@ void Host::Java_mono_android_Runtime_initInternal (JNIEnv *env, jclass runtimeCl
 	if (FastTiming::enabled ()) [[unlikely]] {
 		internal_timing.end_event (clr_init_time_index);
 	}
+#else
+
+	const char* bundle_path = env->GetStringUTFChars(runtimeNativeLibDir, nullptr);
+	std::string executable_path_str = std::format("{}/{}.dll", bundle_path, Constants::MONO_ANDROID_ASSEMBLY_NAME.data());
+	const char* executable_path = executable_path_str.c_str();
+	char pinvoke_override_addr [16];
+	sprintf (pinvoke_override_addr, "%p", &clr_pinvoke_override);
+
+	const char* appctx_keys[4];
+	appctx_keys[0] = "RUNTIME_IDENTIFIER";
+	appctx_keys[1] = "APP_CONTEXT_BASE_DIRECTORY";
+	appctx_keys[2] = "TRUSTED_PLATFORM_ASSEMBLIES";
+	appctx_keys[3] = "PINVOKE_OVERRIDE";
+
+	const char* appctx_values[4];
+	appctx_values[0] = "android-arm64";
+	appctx_values[1] = bundle_path;
+	appctx_values[2] = collect_tpas(bundle_path).c_str();
+	appctx_values[3] = pinvoke_override_addr;
+
+
+	int hr = coreclr_initialize (
+		executable_path,
+		(const char*)Constants::MONO_ANDROID_ASSEMBLY_NAME.data (),
+		4,
+		appctx_keys,
+		appctx_values,
+		&clr_host,
+		&domain_id
+		);
+#endif
 
 	// TODO: make S_OK & friends known to us
 	if (hr != 0 /* S_OK */) {
