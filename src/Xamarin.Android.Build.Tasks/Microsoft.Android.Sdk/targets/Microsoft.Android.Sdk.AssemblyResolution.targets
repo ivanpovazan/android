@@ -121,7 +121,12 @@ _ResolveAssemblies MSBuild target.
       <ResolvedFileToPublish Include="@(_AddSharedLibrariesClrHack)" />
     </ItemGroup>
 
-    <MaybeUseLocalCLR
+    <!-- 
+      The commented settings below are incorrect.
+      In order to use a local build of runtime when building a sample app i.e., samples/HelloCoreCLR/HelloCoreCLR.csproj pass -p:UseLocalRuntimeBuild=true.
+      Which will correctly override the resolved runtime pack
+    -->
+    <!-- <MaybeUseLocalCLR
         LocalClrDirectory="$(_LocalClrDirectory)"
         ResolvedFilesToPublish="@(ResolvedFileToPublish)"
         AndroidRuntime="$(_AndroidRuntime)">
@@ -132,7 +137,7 @@ _ResolveAssemblies MSBuild target.
     <ItemGroup>
       <ResolvedFileToPublish Remove="@(_IgnoreResolvedFile)" />
       <ResolvedFileToPublish Include="@(_AddResolvedFile)" />
-    </ItemGroup>
+    </ItemGroup> -->
 
     <!-- Properties produced by the inner build in Microsoft.Android.Sdk.ILLink.targets -->
     <PropertyGroup>
@@ -263,12 +268,17 @@ _ResolveAssemblies MSBuild target.
       <_ExcludedNativeLibraries Condition=" '$(_AndroidRuntime)' == 'CoreCLR' " Include="libmono-android.release" />
     </ItemGroup>
 
-    <RecreateResolvedRuntimePacks
+    <!-- 
+      The commented settings below are incorrect.
+      In order to use a local build of runtime when building a sample app i.e., samples/HelloCoreCLR/HelloCoreCLR.csproj pass -p:UseLocalRuntimeBuild=true.
+      Which will correctly override the resolved runtime pack
+    -->
+    <!-- <RecreateResolvedRuntimePacks
         ResolvedNativeLibraries="@(_ResolvedNativeLibraries)"
         AndroidRuntime="$(_AndroidRuntime)">
       <Output TaskParameter="ResolvedRuntimePacks" ItemName="ResolvedRuntimePack" />
       <Output TaskParameter="SharedLibrariesToIgnore" ItemName="_IgnoreSharedLibraries" />
-    </RecreateResolvedRuntimePacks>
+    </RecreateResolvedRuntimePacks> -->
 
     <ItemGroup>
       <_ResolvedNativeLibraries Remove="@(_IgnoreSharedLibraries)" />
