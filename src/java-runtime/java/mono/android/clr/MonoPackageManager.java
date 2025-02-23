@@ -71,6 +71,8 @@ public class MonoPackageManager {
 
 				System.loadLibrary("monodroid");
 
+				CopyAssemblies(context, filesDir);
+
 				Runtime.initInternal (
 					language,
 					apks,
@@ -88,6 +90,43 @@ public class MonoPackageManager {
 			}
 		}
 	}
+
+	public static void CopyAssemblies(Context context, String assembliesDir)
+	{
+        AssetManager assetManager = context.getAssets();
+        try
+		{
+            String[] files = assetManager.list("");
+            if (files == null) 
+				throw new FileNotFoundException("No files found in the assets directory.");
+
+            for (String fileName : files)
+			{
+                if (fileName.endsWith(".dll"))
+                    CopyAssembly(assetManager, fileName, assembliesDir);
+            }
+        } catch (IOException e)
+		{
+            e.printStackTrace();
+        }
+    }
+
+    private static void CopyAssembly(AssetManager assetManager, String fileName, String assembliesDir)
+	{
+        File outFile = new File(assembliesDir, fileName);
+        if (outFile.exists()) 
+			return; // Skip
+
+        try (InputStream in = assetManager.open(fileName); FileOutputStream out = new FileOutputStream(outFile))
+		{
+			int read;
+            byte[] buffer = new byte[1024*8];
+            while ((read = in.read(buffer)) != -1)
+                out.write(buffer, 0, read);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
 	// We need to detect the emulator in order to determine the maximum gref count.
 	// The official Android emulator requires a much lower maximum than actual

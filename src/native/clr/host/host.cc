@@ -160,35 +160,33 @@ auto Host::create_delegate (
 	return delegate;
 }
 
-std::string Host::collect_tpas(const char* bundle_path)
+std::string Host::collect_tpas(const char* assemblies_dir)
 {
-	// Find all *.dll files in the bundle path
 	std::vector<std::string> files;
-	DIR* dir = opendir(bundle_path);
+	DIR* dir = opendir(assemblies_dir);
 	if (dir == nullptr)
-		Helpers::abort_application (LOG_DEFAULT, std::format ("Could not open directory: {}", bundle_path));
+		Helpers::abort_application (LOG_DEFAULT, std::format ("Could not open directory: {}", assemblies_dir));
 
 	struct dirent* entry;
 	while ((entry = readdir(dir)) != nullptr) {
 		if (entry->d_type == DT_REG) {
 			std::string file_name = entry->d_name;
-			if (file_name.size() >= 4 && file_name.substr(file_name.size() - 4) == ".dll")
+			if (file_name.size() >= 4 && file_name.substr(file_name.size() - 4) == ".dll") {
+				log_write (LOG_DEFAULT, LogLevel::Info, std::format ("Found file: {}", file_name));
 				files.emplace_back(file_name);
+			}
 		}
 	}
 	closedir(dir);
 
-	log_write (LOG_DEFAULT, LogLevel::Info, std::format ("Found {} files", files.size()));	
-	for (const auto& file : files)
-		log_write (LOG_DEFAULT, LogLevel::Info, "Found file: " + file);
+	log_write (LOG_DEFAULT, LogLevel::Info, std::format ("Found {} assemblies", files.size()));	
 
 	// Concat all assemblies as their full paths, separated by ":"
 	std::string result;
 	for (const auto& file : files) {
-		if (!result.empty()) {
+		if (!result.empty())
 			result += ":";
-		}
-		result += std::string(bundle_path) + "/" + file;
+		result += std::string(assemblies_dir) + "/" + file;
 	}
 
 	return result;
@@ -258,8 +256,10 @@ void Host::Java_mono_android_Runtime_initInternal (JNIEnv *env, jclass runtimeCl
 	}
 #else
 
-	const char* bundle_path = env->GetStringUTFChars(runtimeNativeLibDir, nullptr);
-	std::string executable_path_str = std::format("{}/{}.dll", bundle_path, Constants::MONO_ANDROID_ASSEMBLY_NAME.data());
+	const char* assemblies_dir = home.get_cstr();
+	log_write(LOG_DEFAULT, LogLevel::Info, std::format("Assemblies dir: {}", assemblies_dir));
+
+	std::string executable_path_str = std::format("{}/{}.dll", assemblies_dir, Constants::MONO_ANDROID_ASSEMBLY_NAME.data());
 	const char* executable_path = executable_path_str.c_str();
 	char pinvoke_override_addr [16];
 	sprintf (pinvoke_override_addr, "%p", &clr_pinvoke_override);
@@ -272,8 +272,8 @@ void Host::Java_mono_android_Runtime_initInternal (JNIEnv *env, jclass runtimeCl
 
 	const char* appctx_values[4];
 	appctx_values[0] = "android-arm64";
-	appctx_values[1] = bundle_path;
-	appctx_values[2] = collect_tpas(bundle_path).c_str();
+	appctx_values[1] = assemblies_dir;
+	appctx_values[2] = collect_tpas(assemblies_dir).c_str();
 	appctx_values[3] = pinvoke_override_addr;
 
 

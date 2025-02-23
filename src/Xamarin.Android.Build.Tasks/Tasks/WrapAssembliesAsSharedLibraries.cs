@@ -18,7 +18,7 @@ public class WrapAssembliesAsSharedLibraries : AndroidTask
 {
 	const string ArchiveAssembliesPath = "lib";
 	const string ArchiveLibPath = "lib";
-
+	const string ArchiveAssetsPath = "assets";
 	public override string TaskPrefix => "WAS";
 
 	[Required]
@@ -162,11 +162,13 @@ public class WrapAssembliesAsSharedLibraries : AndroidTask
 
 		if (subdirParts.Length == 1) {
 			// Not a satellite assembly
-			parts.Add (subDirectory);
-			if (IsCoreCLR)
+			if (IsCoreCLR) {
 				parts.Add (assemblyName);
-			else
+			}
+			else {
+				parts.Add (subDirectory);
 				parts.Add (MonoAndroidHelper.MakeDiscreteAssembliesEntryName (assemblyName)); 
+			}
 		} else if (subdirParts.Length == 2) {
 			parts.Add (subdirParts [0]);
 			parts.Add (MonoAndroidHelper.MakeDiscreteAssembliesEntryName (assemblyName, subdirParts [1]));
@@ -174,7 +176,8 @@ public class WrapAssembliesAsSharedLibraries : AndroidTask
 			throw new InvalidOperationException ($"Internal error: '{assembly}' `DestinationSubDirectory` metadata has too many components ({parts.Count} instead of 1 or 2)");
 		}
 
-		var assemblyFilePath = MonoAndroidHelper.MakeZipArchivePath (ArchiveAssembliesPath, parts);
+		var archivePath = IsCoreCLR ? ArchiveAssetsPath : ArchiveAssembliesPath;
+		var assemblyFilePath = MonoAndroidHelper.MakeZipArchivePath (archivePath, parts);
 		return (assemblyFilePath, Path.GetDirectoryName (assemblyFilePath) + "/");
 	}
 
