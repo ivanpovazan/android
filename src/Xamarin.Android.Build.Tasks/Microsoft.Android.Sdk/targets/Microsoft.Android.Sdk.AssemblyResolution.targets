@@ -103,9 +103,11 @@ _ResolveAssemblies MSBuild target.
         ;_AndroidNdkDirectory=$(_AndroidNdkDirectory)
       </_AdditionalProperties>
       <_AndroidBuildRuntimeIdentifiersInParallel Condition=" '$(_AndroidBuildRuntimeIdentifiersInParallel)' == '' ">true</_AndroidBuildRuntimeIdentifiersInParallel>
+      <!-- for some reason previous approach disabbles mono from running its AOT tasks.. -->
+      <_PublishReadyToRunForInnerBuild Condition="'$(PublishReadyToRun)' == 'true'">PublishReadyToRun=false</_PublishReadyToRunForInnerBuild>
     </PropertyGroup>
     <ItemGroup>
-      <_ProjectToBuild Include="$(MSBuildProjectFile)" AdditionalProperties="RuntimeIdentifier=%(_RIDs.Identity);$(_AdditionalProperties)" />
+      <_ProjectToBuild Include="$(MSBuildProjectFile)" AdditionalProperties="RuntimeIdentifier=%(_RIDs.Identity);$(_AdditionalProperties);$(_PublishReadyToRunForInnerBuild)" />
     </ItemGroup>
 
     <!-- Postpone running ReadyToRun targets after GenerateJavaStubs -->
@@ -113,8 +115,7 @@ _ResolveAssemblies MSBuild target.
         Condition=" '$(DesignTimeBuild)' != 'true' "
         Projects="@(_ProjectToBuild)"
         BuildInParallel="$(_AndroidBuildRuntimeIdentifiersInParallel)"
-        Targets="_ComputeFilesToPublishForRuntimeIdentifiers"
-        Properties="PublishReadyToRun=false">
+        Targets="_ComputeFilesToPublishForRuntimeIdentifiers">
       <Output TaskParameter="TargetOutputs" ItemName="ResolvedFileToPublish" />
     </MSBuild>
 

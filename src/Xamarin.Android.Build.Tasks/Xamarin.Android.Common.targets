@@ -1837,7 +1837,8 @@ because xbuild doesn't support framework reference assemblies.
 
     <_ProcessedAssemblies Remove="@(_ProcessedAssemblies)" />
     <ResolvedSymbols Remove="@(ResolvedSymbols)" />
-    <AndroidJavaLibrary Remove="@(AndroidJavaLibrary)" />
+    <!-- dont remove resolved AndroidJavaLibrary here, as we cannot fully recreate them -->
+    <!-- <AndroidJavaLibrary Remove="@(AndroidJavaLibrary)" /> -->
     <_ProcessedShrunkAssemblies Remove="@(_ProcessedShrunkAssemblies)" />
     <ResolvedAssemblies Remove="@(ResolvedAssemblies)" />
     <_ShrunkAssemblies Remove="@(_ShrunkAssemblies)" />
