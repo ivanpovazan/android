@@ -111,6 +111,7 @@ Copyright (C) 2011-2012 Xamarin. All rights reserved.
 <UsingTask TaskName="Xamarin.Android.Tasks.UnzipToFolder" AssemblyFile="Xamarin.Android.Build.Tasks.dll" />
 <UsingTask TaskName="Xamarin.Android.Tasks.GenerateJniRemappingNativeCode" AssemblyFile="Xamarin.Android.Build.Tasks.dll" />
 <UsingTask TaskName="Xamarin.Android.Tasks.PrepareSatelliteAssemblies" AssemblyFile="Xamarin.Android.Build.Tasks.dll" />
+<UsingTask TaskName="Xamarin.Android.Tasks.ProcessAssemblies"      AssemblyFile="Xamarin.Android.Build.Tasks.dll" />
 <!--
 *******************************************
   Extensibility hook that allows VS to
@@ -342,15 +343,18 @@ Copyright (C) 2011-2012 Xamarin. All rights reserved.
   <AndroidUseAssemblyStore Condition=" '$(AndroidUseAssemblyStore)' == '' ">true</AndroidUseAssemblyStore>
   <AndroidAotEnableLazyLoad Condition=" '$(AndroidAotEnableLazyLoad)' == '' And '$(AotAssemblies)' == 'true' And '$(AndroidIncludeDebugSymbols)' != 'true' ">True</AndroidAotEnableLazyLoad>
   <AndroidEnableMarshalMethods Condition=" '$(AndroidEnableMarshalMethods)' == '' and ('$(UsingMicrosoftNETSdkRazor)' == 'true') ">False</AndroidEnableMarshalMethods>
-  <AndroidEnableMarshalMethods Condition=" '$(AndroidEnableMarshalMethods)' == '' and '$(_AndroidRuntime)' != 'NativeAOT' and '$(PublishReadyToRun)' != 'true' ">True</AndroidEnableMarshalMethods>
+  <AndroidEnableMarshalMethods Condition=" '$(AndroidEnableMarshalMethods)' == '' and '$(_AndroidRuntime)' != 'NativeAOT'">True</AndroidEnableMarshalMethods>
   <!-- NOTE: temporarily disable for NativeAOT for now, to get build passing -->
-  <AndroidEnableMarshalMethods Condition=" '$(AndroidEnableMarshalMethods)' == '' and ('$(_AndroidRuntime)' == 'NativeAOT' or '$(PublishReadyToRun)' == 'true') ">False</AndroidEnableMarshalMethods>
+  <AndroidEnableMarshalMethods Condition=" '$(AndroidEnableMarshalMethods)' == '' and '$(_AndroidRuntime)' == 'NativeAOT'">False</AndroidEnableMarshalMethods>
 
   <_AndroidUseMarshalMethods Condition=" '$(AndroidIncludeDebugSymbols)' == 'True' ">False</_AndroidUseMarshalMethods>
   <_AndroidUseMarshalMethods Condition=" '$(AndroidIncludeDebugSymbols)' != 'True' ">$(AndroidEnableMarshalMethods)</_AndroidUseMarshalMethods>
 
   <_AndroidUseManagedMarshalMethodsLookup Condition=" '$(_AndroidUseManagedMarshalMethodsLookup)' == '' and '$(_AndroidUseMarshalMethods)' == 'True' and '$(_AndroidRuntime)' != 'MonoVM' ">True</_AndroidUseManagedMarshalMethodsLookup>
   <_AndroidUseManagedMarshalMethodsLookup Condition=" '$(_AndroidUseManagedMarshalMethodsLookup)' == '' ">False</_AndroidUseManagedMarshalMethodsLookup>
+
+  <RunAotTarget Condition="'$(PublishReadyToRun)' != 'true'">_RunAotForAllRIDs</RunAotTarget>
+  <RunAotTarget Condition="'$(PublishReadyToRun)' == 'true'">_RunReadyToRun</RunAotTarget>
 </PropertyGroup>
 
 <!-- Do not resolve from the GAC under any circumstances in Mobile -->
@@ -1810,10 +1814,114 @@ because xbuild doesn't support framework reference assemblies.
   </MSBuild>
 </Target>
 
+<Target Name="_RunReadyToRun"
+        DependsOnTargets="CreateReadyToRunImages">
+
+  <!-- Redo the majority of `_ResolveAssemblies` target from Microsoft.Android.Sdk.AssemblyResolution.targets
+    to recreate the used item groups after R2R has modified ResolvedFileToPublish. -->
+
+  <!-- 0. Add RuntimeIdentifier metadata for R2R Composite assembly -->
+  <ItemGroup Condition="'$(PublishReadyToRunComposite)' == 'true'">
+    <ResolvedFileToPublish
+        Condition=" '%(ResolvedFileToPublish.RuntimeIdentifier)' == '' "
+        Update="@(ResolvedFileToPublish)"
+        RuntimeIdentifier="$(RuntimeIdentifier)"
+    />
+  </ItemGroup>
+
+  <!-- 1. Clean up all "public" (without _ prefix) items with assemblies -->
+  <ItemGroup>
+    <_ResolvedAssemblyFiles Remove="@(_ResolvedAssemblyFiles)" />
+    <_ResolvedSymbolFiles Remove="@(_ResolvedSymbolFiles)" />
+    <_ResolvedJavaLibraries Remove="@(_ResolvedJavaLibraries)" />
+
+    <_ProcessedAssemblies Remove="@(_ProcessedAssemblies)" />
+    <ResolvedSymbols Remove="@(ResolvedSymbols)" />
+    <AndroidJavaLibrary Remove="@(AndroidJavaLibrary)" />
+    <_ProcessedShrunkAssemblies Remove="@(_ProcessedShrunkAssemblies)" />
+    <ResolvedAssemblies Remove="@(ResolvedAssemblies)" />
+    <_ShrunkAssemblies Remove="@(_ShrunkAssemblies)" />
+    <ResolvedFrameworkAssemblies Remove="@(ResolvedFrameworkAssemblies)" />
+    <ResolvedUserAssemblies Remove="@(ResolvedUserAssemblies)" />
+
+    <_ResolvedAssemblyFiles Include="@(ResolvedFileToPublish)" Condition=" '%(ResolvedFileToPublish.Extension)' == '.dll' " />
+    <_ResolvedSymbolFiles   Include="@(ResolvedFileToPublish)" Condition=" '%(ResolvedFileToPublish.Extension)' == '.pdb' " />
+    <_ResolvedJavaLibraries Include="@(ResolvedFileToPublish)" Condition=" '%(ResolvedFileToPublish.Extension)' == '.jar' " />
+
+  </ItemGroup>
+
+  <!-- 2. Rerun ProcessAssemblies and adjust few item groups to recreate the state of public items with assemblies -->
+  <ProcessAssemblies
+      RuntimeIdentifiers="@(_RIDs)"
+      DesignTimeBuild="$(DesignTimeBuild)"
+      InputAssemblies="@(_ResolvedAssemblyFiles)"
+      InputJavaLibraries="@(_ResolvedJavaLibraries->Distinct())"
+      ResolvedSymbols="@(_ResolvedSymbolFiles)"
+      AndroidIncludeDebugSymbols="$(AndroidIncludeDebugSymbols)"
+      PublishTrimmed="$(PublishTrimmed)">
+    <Output TaskParameter="OutputAssemblies" ItemName="_ProcessedAssemblies" />
+    <Output TaskParameter="OutputJavaLibraries" ItemName="AndroidJavaLibrary" />
+    <Output TaskParameter="ResolvedSymbols"  ItemName="ResolvedSymbols" />
+    <Output TaskParameter="ShrunkAssemblies" ItemName="_ProcessedShrunkAssemblies" />
+  </ProcessAssemblies>
+  <AppendCustomMetadataToItemGroup
+      Inputs="@(_ProcessedAssemblies)"
+      MetaDataItems="@(AndroidCustomMetaDataForReferences)">
+    <Output TaskParameter="Output" ItemName="ResolvedAssemblies" />
+  </AppendCustomMetadataToItemGroup>
+  <AppendCustomMetadataToItemGroup
+      Inputs="@(_ProcessedShrunkAssemblies)"
+      MetaDataItems="@(AndroidCustomMetaDataForReferences)">
+    <Output TaskParameter="Output" ItemName="_ShrunkAssemblies" />
+  </AppendCustomMetadataToItemGroup>
+  <ItemGroup>
+    <ResolvedFrameworkAssemblies
+        Include="@(ResolvedAssemblies)"
+        Condition=" '%(ResolvedAssemblies.FrameworkAssembly)' == 'true' "
+    />
+    <ResolvedUserAssemblies
+        Include="@(ResolvedAssemblies)"
+        Condition=" '%(ResolvedAssemblies.FrameworkAssembly)' != 'true' "
+    />
+  </ItemGroup>
+
+  <!-- 3. Cleanup "internal" (with _ prefix) items with assemblies -->
+  <ItemGroup>
+    <_ResolvedAssemblies Remove="@(_ResolvedAssemblies)" />
+    <_ResolvedUserAssemblies Remove="@(_ResolvedUserAssemblies)" />
+    <_ResolvedFrameworkAssemblies Remove="@(_ResolvedFrameworkAssemblies)" />
+    <_ResolvedSymbols Remove="@(_ResolvedSymbols)" />
+    <_ShrunkFrameworkAssemblies Remove="@(_ShrunkFrameworkAssemblies)" />
+    <_ShrunkUserAssemblies Remove="@(_ShrunkUserAssemblies)" />
+    <_ResolvedUserMonoAndroidAssemblies Remove="@(_ResolvedUserMonoAndroidAssemblies)" />
+  </ItemGroup>
+
+  <!-- 4. Recreate the internal items with assemblies that are used in the rest of the build process. -->
+  <ItemGroup>
+    <_ResolvedAssemblies          Include="@(ResolvedAssemblies)" />
+    <_ResolvedUserAssemblies      Include="@(ResolvedUserAssemblies)" />
+    <_ResolvedFrameworkAssemblies Include="@(ResolvedFrameworkAssemblies)" />
+    <_ResolvedSymbols             Include="@(ResolvedSymbols)" />
+    <_ShrunkFrameworkAssemblies
+        Include="@(_ShrunkAssemblies)"
+        Condition=" '%(_ShrunkAssemblies.FrameworkAssembly)' == 'true' "
+    />
+    <_ShrunkUserAssemblies
+        Include="@(_ShrunkAssemblies)"
+        Condition=" '%(_ShrunkAssemblies.FrameworkAssembly)' != 'true' "
+    />
+    <_ResolvedUserMonoAndroidAssemblies
+        Include="@(_ResolvedUserAssemblies)"
+        Condition=" '%(_ResolvedUserAssemblies.TargetFrameworkIdentifier)' == 'MonoAndroid' Or '%(_ResolvedUserAssemblies.HasMonoAndroidReference)' == 'True' "
+    />
+  </ItemGroup>
+
+</Target>
+
 <PropertyGroup>
   <_GeneratePackageManagerJavaDependsOn>
     _GenerateJavaStubs;
-    _RunAotForAllRIDs;
+    $(RunAotTarget);
     _ManifestMerger;
     _ConvertCustomView;
     $(_AfterConvertCustomView);

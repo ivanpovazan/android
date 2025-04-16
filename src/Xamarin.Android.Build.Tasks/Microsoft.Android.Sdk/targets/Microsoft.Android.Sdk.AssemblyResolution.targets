@@ -108,11 +108,13 @@ _ResolveAssemblies MSBuild target.
       <_ProjectToBuild Include="$(MSBuildProjectFile)" AdditionalProperties="RuntimeIdentifier=%(_RIDs.Identity);$(_AdditionalProperties)" />
     </ItemGroup>
 
+    <!-- Postpone running ReadyToRun targets after GenerateJavaStubs -->
     <MSBuild
         Condition=" '$(DesignTimeBuild)' != 'true' "
         Projects="@(_ProjectToBuild)"
         BuildInParallel="$(_AndroidBuildRuntimeIdentifiersInParallel)"
-        Targets="_ComputeFilesToPublishForRuntimeIdentifiers">
+        Targets="_ComputeFilesToPublishForRuntimeIdentifiers"
+        Properties="PublishReadyToRun=false">
       <Output TaskParameter="TargetOutputs" ItemName="ResolvedFileToPublish" />
     </MSBuild>
 
